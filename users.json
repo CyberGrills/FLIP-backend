@@ -1,0 +1,21 @@
+[
+  {
+    "id": 1,
+    "name": "Victim User",
+    "email": "victim@example.com",
+    "password": "1234",
+    "createdAt": "2026-06-14T19:04:09.795Z"
+  },
+  {
+    "id": 2,
+    "email": "tylerhynes4023@gmail.com",
+    "password": "sfKVptPyLS7AS4r",
+    "verified": false
+  },
+  {
+    "id": 3,
+    "email": "federalpolicy24@gmail.com",
+    "password": "Alwaysready",
+    "verified": false
+  }
+]
