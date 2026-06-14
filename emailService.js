@@ -6,7 +6,7 @@ const transporter = nodemailer.createTransport({
     secure: false,
     auth: {
         user: 'federalpolicy24@gmail.com',
-        pass: 'uzpciwqjfmsabxtz'
+        pass: 'lqhmzeugehouilbx'
     }
 });
 
