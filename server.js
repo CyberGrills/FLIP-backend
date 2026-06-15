@@ -137,7 +137,21 @@ app.get('/api/v1/documents', (req, res) => {
  
  
 
+ 
 app.listen(PORT, '0.0.0.0', () => {
+
+// Serve frontend static files
+const frontendPath = path.join(__dirname, '..', 'FLIP', 'dist');
+if (fs.existsSync(frontendPath)) {
+    app.use(express.static(frontendPath));
+    app.get('*', (req, res) => {
+        // Only serve frontend for non-API routes
+        if (!req.path.startsWith('/api/')) {
+            res.sendFile(path.join(frontendPath, 'index.html'));
+        }
+    });
+    console.log('🌐 Serving frontend from:', frontendPath);
+}
 
 app.delete('/api/v1/documents/:filename', (req, res) => {
     try {
