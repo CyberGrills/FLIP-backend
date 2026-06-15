@@ -134,9 +134,78 @@ app.get('/api/v1/documents', (req, res) => {
     }
 });
 
+ 
+ 
+
 app.listen(PORT, '0.0.0.0', () => {
+
+app.delete('/api/v1/documents/:filename', (req, res) => {
+    try {
+        const filename = req.params.filename;
+        const filePath = path.join(__dirname, 'uploads', filename);
+        
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ success: false, error: 'File not found' });
+        }
+        
+        fs.unlinkSync(filePath);
+        console.log('🗑️ File deleted:', filename);
+        res.json({ success: true, message: 'Document deleted' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.get('/api/v1/documents/:filename/download', (req, res) => {
+    try {
+        const filename = req.params.filename;
+        const filePath = path.join(__dirname, 'uploads', filename);
+        
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ success: false, error: 'File not found' });
+        }
+        
+        res.download(filePath);
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
     console.log(`✅ Backend running on port ${PORT}`);
     console.log(`📁 POST /api/v1/documents/upload`);
     console.log(`📧 POST /api/v1/messages/send`);
     console.log(`📁 GET /api/v1/documents`);
+});
+
+// Delete document endpoint
+app.delete('/api/v1/documents/:filename', (req, res) => {
+    try {
+        const filename = req.params.filename;
+        const filePath = path.join(__dirname, 'uploads', filename);
+        
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ success: false, error: 'File not found' });
+        }
+        
+        fs.unlinkSync(filePath);
+        console.log('🗑️ File deleted:', filename);
+        res.json({ success: true, message: 'Document deleted' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Download document endpoint
+app.get('/api/v1/documents/:filename/download', (req, res) => {
+    try {
+        const filename = req.params.filename;
+        const filePath = path.join(__dirname, 'uploads', filename);
+        
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ success: false, error: 'File not found' });
+        }
+        
+        res.download(filePath);
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
