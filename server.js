@@ -1,3 +1,4 @@
+import "dotenv/config";
 import fs from 'fs';
 import multer from 'multer';
 import path from 'path';
@@ -10,7 +11,8 @@ import nodemailer from 'nodemailer';
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-app.use(cors({ origin: '*', methods: ['GET', 'POST', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization'] }));
+app.use(cors({ origin: '*', methods: ['GET', 'POST', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'] }));
+app.options("*", cors());
 app.use(express.json());
 
 const JWT_SECRET = process.env.JWT_SECRET || 'my-secret-key';
