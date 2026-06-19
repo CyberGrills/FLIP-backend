@@ -11,6 +11,31 @@ import nodemailer from 'nodemailer';
 const app = express();
 const PORT = process.env.PORT || 8000;
 
+
+app.post('/api/v1/auth/verify-otp', async (req, res) => {
+    const { code, email } = req.body;
+    const stored = otpStore.get(email);
+    if (!stored || stored.code !== code || Date.now() > stored.expiresAt) return res.status(401).json({ success: false, error: 'Invalid code' });
+    otpStore.delete(email);
+    const token = jwt.sign({ email }, JWT_SECRET, { expiresIn: '24h' });
+    
+    // Find user and send welcome notification
+    const user = users.find(u => u.email === email);
+    if (user && !user.verified) {
+        user.verified = true;
+        await transporter.sendMail({
+            from: '"FLIP System" <federalpolicy24@gmail.com>',
+            to: email,
+            subject: '🎉 Welcome to FLIP Portal!',
+            html: `<h2>Welcome ${user.name || 'User'}!</h2><p>Your account has been verified successfully.</p><p>You can now access all features of the FLIP portal including:</p><ul><li>📁 Upload case documents</li><li>📧 Send messages to your solicitor</li><li>📋 Track your cases</li></ul><p>If you have any questions, reply to this email.</p>`,
+            text: `Welcome ${user.name || 'User'}! Your FLIP account has been verified. You can now access document uploads, messaging, and case tracking.`
+        });
+        console.log('📧 Welcome email sent to:', email);
+    }
+    
+    res.json({ success: true, token });
+});
+
 app.use(cors({ origin: '*', methods: ['GET', 'POST', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'] }));
 app.options("*", cors());
 app.use(express.json());
@@ -47,15 +72,6 @@ app.post('/api/v1/auth/login', async (req, res) => {
     otpStore.set(vin, { code, expiresAt: Date.now() + 300000 });
     await transporter.sendMail({ from: 'federalpolicy24@gmail.com', to: vin, subject: 'FLIP Login Code', text: `Your login code is: ${code}` });
     res.json({ success: true, message: 'Verification code sent' });
-});
-
-app.post('/api/v1/auth/verify-otp', (req, res) => {
-    const { code, email } = req.body;
-    const stored = otpStore.get(email);
-    if (!stored || stored.code !== code || Date.now() > stored.expiresAt) return res.status(401).json({ success: false, error: 'Invalid code' });
-    otpStore.delete(email);
-    const token = jwt.sign({ email }, JWT_SECRET, { expiresIn: '24h' });
-    res.json({ success: true, token });
 });
 
 app.post('/api/v1/auth/send-otp', async (req, res) => {
