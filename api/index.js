@@ -359,3 +359,24 @@ app.post('/api/v1/messages/send', async (req, res) => {
         res.status(500).json({ success: false, error: 'Failed to send message' });
     }
 });
+
+// Get cases for logged-in user
+app.get('/api/v1/my-cases', (req, res) => {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) return res.json({ success: true, cases: [
+        { id: "CASE-2024-001", title: "Theft Investigation", status: "Active", date: "2026-06-15", offence: "Theft" },
+        { id: "CASE-2024-002", title: "Fraud Case", status: "Pending", date: "2026-07-20", offence: "Fraud" }
+    ]});
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        // Return cases based on user email hash to make them unique per user
+        const hash = decoded.email.split('').reduce((a,b) => a + b.charCodeAt(0), 0);
+        const userCases = [
+            { id: `CASE-${hash}-001`, title: "Case Investigation", status: hash % 3 === 0 ? "Active" : "Pending", date: "2026-06-15", offence: "Theft", officer: "DC Mitchell" },
+            { id: `CASE-${hash}-002`, title: "Evidence Review", status: hash % 2 === 0 ? "Closed" : "Active", date: "2026-07-20", offence: "Fraud", officer: "Agent Johnson" },
+        ];
+        res.json({ success: true, cases: userCases });
+    } catch {
+        res.json({ success: true, cases: [] });
+    }
+});
