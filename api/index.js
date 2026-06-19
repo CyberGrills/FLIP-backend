@@ -232,3 +232,33 @@ app.get('/api/v1/documents/:filename/download', (req, res) => {
 });
 
 export default app;
+
+// Supabase storage upload (for large files)
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.SUPABASE_URL || 'https://ikjgktdqkduizgjsprpx.supabase.co',
+  process.env.SUPABASE_KEY || ''
+);
+
+app.post('/api/v1/documents/upload-supabase', upload.single('document'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, error: 'No file' });
+    
+    const fileName = `${Date.now()}-${req.file.originalname}`;
+    const { data, error } = await supabase.storage
+      .from('documents')
+      .upload(fileName, req.file.buffer, {
+        contentType: req.file.mimetype,
+        upsert: false
+      });
+    
+    if (error) throw error;
+    
+    const { data: urlData } = supabase.storage.from('documents').getPublicUrl(fileName);
+    
+    res.json({ success: true, data: { filename: fileName, url: urlData.publicUrl, size: req.file.size } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
