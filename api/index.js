@@ -87,7 +87,7 @@ const __dirname = path.dirname(__filename);
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const uploadDir = path.join(__dirname, '..', 'uploads');
+        const uploadDir = path.join(__dirname, 'uploads');
         if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
         cb(null, uploadDir);
     },
@@ -140,7 +140,7 @@ app.post('/api/v1/messages/send', async (req, res) => {
 
 app.get('/api/v1/documents', (req, res) => {
     try {
-        const uploadDir = path.join(__dirname, '..', 'uploads');
+        const uploadDir = path.join(__dirname, 'uploads');
         if (!fs.existsSync(uploadDir)) return res.json({ success: true, documents: [] });
         const files = fs.readdirSync(uploadDir).map(filename => {
             const stats = fs.statSync(path.join(uploadDir, filename));
@@ -156,9 +156,8 @@ app.get('/api/v1/documents', (req, res) => {
  
 
  
-
 // Serve frontend static files
-const frontendPath = path.join(__dirname, '..', '..', 'FLIP', 'dist');
+const frontendPath = path.join(__dirname, '..', 'FLIP', 'dist');
 if (fs.existsSync(frontendPath)) {
     app.use(express.static(frontendPath));
     app.get('*', (req, res) => {
@@ -200,11 +199,6 @@ app.get('/api/v1/documents/:filename/download', (req, res) => {
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
-});
-    console.log(`✅ Backend running on port ${PORT}`);
-    console.log(`📁 POST /api/v1/documents/upload`);
-    console.log(`📧 POST /api/v1/messages/send`);
-    console.log(`📁 GET /api/v1/documents`);
 });
 
 // Delete document endpoint
