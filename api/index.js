@@ -36,7 +36,7 @@ app.post('/api/v1/auth/verify-otp', async (req, res) => {
     res.json({ success: true, token });
 });
 
-app.use(cors({ origin: '*', methods: ['GET', 'POST', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'] }));
+app.use(cors({ origin: ['https://flip-jade.vercel.app', 'https://eleven-varmint-boogeyman.ngrok-free.dev', 'http://localhost:5173'], methods: ['GET', 'POST', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'] }));
 app.options("*", cors());
 app.use(express.json());
 
