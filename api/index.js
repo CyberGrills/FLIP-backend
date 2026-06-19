@@ -1,4 +1,4 @@
-import { assignRandomSolicitor, rotateSolicitor, getAllSolicitors, getUserHearings, addHearing, addNotification, getUserNotifications, markNotificationRead, checkUpcomingHearings } from "./solicitorManager.js";
+import { assignRandomSolicitor, rotateSolicitor, getAllSolicitors, getUserHearings, addHearing, addNotification, getUserNotifications, markNotificationRead, checkUpcomingHearings } from "../solicitorManager.js";
 import "dotenv/config";
 import fs from 'fs';
 import multer from 'multer';
