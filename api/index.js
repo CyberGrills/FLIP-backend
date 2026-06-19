@@ -1,4 +1,4 @@
-import { authMiddleware, adminMiddleware } from './middleware.js';
+import jwt from "jsonwebtoken"; const JWT_SECRET = process.env.JWT_SECRET || "flip-secret-key-2024"; function authMiddleware(req, res, next) { const token = req.headers.authorization?.replace("Bearer ", ""); if (!token) return res.status(401).json({ success: false, error: "Authentication required" }); try { req.user = jwt.verify(token, JWT_SECRET); next(); } catch { return res.status(401).json({ success: false, error: "Invalid token" }); } }
 import { assignRandomSolicitor, rotateSolicitor, getAllSolicitors, getUserHearings, addHearing, addNotification, getUserNotifications, markNotificationRead, checkUpcomingHearings } from "./solicitorManager.js";
 import "dotenv/config";
 import fs from 'fs';
