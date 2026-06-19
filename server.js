@@ -241,3 +241,5 @@ app.get('/api/v1/documents/:filename/download', (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
+
+export default app;
