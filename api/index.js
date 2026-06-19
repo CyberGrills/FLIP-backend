@@ -156,7 +156,6 @@ app.get('/api/v1/documents', (req, res) => {
  
 
  
-app.listen(PORT, '0.0.0.0', () => {
 
 // Serve frontend static files
 const frontendPath = path.join(__dirname, '..', '..', 'FLIP', 'dist');
