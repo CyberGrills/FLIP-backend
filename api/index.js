@@ -88,8 +88,6 @@ const __dirname = path.dirname(__filename);
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         const uploadDir = path.join(__dirname, 'uploads');
-        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-        cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -111,7 +109,6 @@ const upload = multer({
 app.post('/api/v1/documents/upload', upload.single('document'), (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
-        const fileInfo = { filename: req.file.filename, originalName: req.file.originalname, size: req.file.size, path: req.file.path, uploadedAt: new Date().toISOString() };
         console.log('📄 File uploaded:', fileInfo.originalName);
         res.json({ success: true, message: 'Document uploaded successfully', data: fileInfo });
     } catch (error) {
@@ -141,7 +138,6 @@ app.post('/api/v1/messages/send', async (req, res) => {
 app.get('/api/v1/documents', (req, res) => {
     try {
         const uploadDir = path.join(__dirname, 'uploads');
-        if (!fs.existsSync(uploadDir)) return res.json({ success: true, documents: [] });
         const files = fs.readdirSync(uploadDir).map(filename => {
             const stats = fs.statSync(path.join(uploadDir, filename));
             return { filename, size: stats.size, uploadedAt: stats.birthtime };
