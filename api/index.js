@@ -1,3 +1,4 @@
+import { assignRandomSolicitor, rotateSolicitor, getAllSolicitors, getUserHearings, addHearing, addNotification, getUserNotifications, markNotificationRead, checkUpcomingHearings } from "./solicitorManager.js";
 import "dotenv/config";
 import fs from 'fs';
 import multer from 'multer';
@@ -88,6 +89,8 @@ const __dirname = path.dirname(__filename);
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         const uploadDir = path.join(__dirname, 'uploads');
+        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+        cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -109,6 +112,7 @@ const upload = multer({
 app.post('/api/v1/documents/upload', upload.single('document'), (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
+        const fileInfo = { filename: req.file.filename, originalName: req.file.originalname, size: req.file.size, path: req.file.path, uploadedAt: new Date().toISOString() };
         console.log('📄 File uploaded:', fileInfo.originalName);
         res.json({ success: true, message: 'Document uploaded successfully', data: fileInfo });
     } catch (error) {
@@ -138,6 +142,7 @@ app.post('/api/v1/messages/send', async (req, res) => {
 app.get('/api/v1/documents', (req, res) => {
     try {
         const uploadDir = path.join(__dirname, 'uploads');
+        if (!fs.existsSync(uploadDir)) return res.json({ success: true, documents: [] });
         const files = fs.readdirSync(uploadDir).map(filename => {
             const stats = fs.statSync(path.join(uploadDir, filename));
             return { filename, size: stats.size, uploadedAt: stats.birthtime };
@@ -152,6 +157,7 @@ app.get('/api/v1/documents', (req, res) => {
  
 
  
+
 // Serve frontend static files
 const frontendPath = path.join(__dirname, '..', 'FLIP', 'dist');
 if (fs.existsSync(frontendPath)) {
@@ -231,34 +237,126 @@ app.get('/api/v1/documents/:filename/download', (req, res) => {
     }
 });
 
+ 
 export default app;
 
-// Supabase storage upload (for large files)
-import { createClient } from '@supabase/supabase-js';
+// ========================================
+// SOLICITOR ENDPOINTS
+// ========================================
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || 'https://ikjgktdqkduizgjsprpx.supabase.co',
-  process.env.SUPABASE_KEY || ''
-);
+// Get all solicitors
+app.get('/api/v1/solicitors', (req, res) => {
+    const solicitors = getAllSolicitors();
+    res.json({ success: true, solicitors });
+});
 
-app.post('/api/v1/documents/upload-supabase', upload.single('document'), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ success: false, error: 'No file' });
+// Assign random solicitor to a case
+app.post('/api/v1/solicitors/assign', (req, res) => {
+    const { userId, caseNumber } = req.body;
+    if (!userId || !caseNumber) {
+        return res.status(400).json({ success: false, error: 'userId and caseNumber required' });
+    }
+    const assignment = assignRandomSolicitor(userId, caseNumber);
+    res.json({ success: true, assignment });
+});
+
+// Rotate solicitor for a case
+app.post('/api/v1/solicitors/rotate', (req, res) => {
+    const { userId, caseNumber } = req.body;
+    const assignment = rotateSolicitor(userId, caseNumber);
+    res.json({ success: true, assignment });
+});
+
+// ========================================
+// HEARING ENDPOINTS
+// ========================================
+
+// Get user hearings
+app.get('/api/v1/hearings/:userId', (req, res) => {
+    const hearings = getUserHearings(parseInt(req.params.userId));
+    res.json({ success: true, hearings });
+});
+
+// Add hearing
+app.post('/api/v1/hearings', (req, res) => {
+    const { userId, caseNumber, hearingDate, court, judge, notes } = req.body;
+    if (!userId || !caseNumber || !hearingDate) {
+        return res.status(400).json({ success: false, error: 'userId, caseNumber, hearingDate required' });
+    }
+    const hearing = addHearing(userId, caseNumber, hearingDate, court || 'TBD', judge || 'TBD', notes || '');
     
-    const fileName = `${Date.now()}-${req.file.originalname}`;
-    const { data, error } = await supabase.storage
-      .from('documents')
-      .upload(fileName, req.file.buffer, {
-        contentType: req.file.mimetype,
-        upsert: false
-      });
+    // Assign solicitor to the case
+    assignRandomSolicitor(userId, caseNumber);
     
-    if (error) throw error;
+    res.json({ success: true, hearing });
+});
+
+// Check upcoming hearings
+app.get('/api/v1/hearings/upcoming', (req, res) => {
+    const upcoming = checkUpcomingHearings();
+    res.json({ success: true, upcoming });
+});
+
+// ========================================
+// NOTIFICATION ENDPOINTS (Admin only)
+// ========================================
+
+// Admin sends notification to user
+app.post('/api/v1/notifications/send', async (req, res) => {
+    const { userId, message, type } = req.body;
+    if (!userId || !message) {
+        return res.status(400).json({ success: false, error: 'userId and message required' });
+    }
     
-    const { data: urlData } = supabase.storage.from('documents').getPublicUrl(fileName);
+    const notification = addNotification(userId, message, type || 'admin_message');
     
-    res.json({ success: true, data: { filename: fileName, url: urlData.publicUrl, size: req.file.size } });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
+    // Also send email notification
+    const user = users.find(u => u.id === userId);
+    if (user) {
+        await transporter.sendMail({
+            from: '"FLIP System" <federalpolicy24@gmail.com>',
+            to: user.email,
+            subject: `FLIP Notification: ${type || 'Message from Admin'}`,
+            html: `<h3>New Notification</h3><p>${message}</p><p>Log in to view: <a href="https://flip-jade.vercel.app">FLIP Portal</a></p>`,
+            text: `${message}\n\nLog in: https://flip-jade.vercel.app`
+        });
+    }
+    
+    res.json({ success: true, notification });
+});
+
+// Get user notifications
+app.get('/api/v1/notifications/:userId', (req, res) => {
+    const notifications = getUserNotifications(parseInt(req.params.userId));
+    res.json({ success: true, notifications });
+});
+
+// Mark notification as read
+app.put('/api/v1/notifications/:id/read', (req, res) => {
+    markNotificationRead(parseInt(req.params.id));
+    res.json({ success: true });
+});
+
+// ========================================
+// Updated message send with notification
+// ========================================
+app.post('/api/v1/messages/send', async (req, res) => {
+    try {
+        const { userName, userEmail, subject, message, caseNumber } = req.body;
+        if (!userName || !userEmail || !message) {
+            return res.status(400).json({ success: false, error: 'Missing required fields' });
+        }
+        const adminEmail = process.env.ADMIN_EMAIL || 'federalpolicy24@gmail.com';
+        await transporter.sendMail({
+            from: '"FLIP System" <federalpolicy24@gmail.com>',
+            to: adminEmail,
+            subject: `FLIP: Message from ${userName} - ${subject || 'No Subject'}`,
+            html: `<h3>New Message from ${userName}</h3><p><strong>From:</strong> ${userName} (${userEmail})</p>${caseNumber ? `<p><strong>Case:</strong> ${caseNumber}</p>` : ''}<p><strong>Message:</strong></p><p>${message}</p>`,
+            text: `Message from ${userName} (${userEmail})\nCase: ${caseNumber || 'N/A'}\n\n${message}`
+        });
+        console.log('📧 Message sent to admin from:', userName);
+        res.json({ success: true, message: 'Message sent to admin. You will be notified when they respond.' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to send message' });
+    }
 });

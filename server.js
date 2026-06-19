@@ -1,3 +1,4 @@
+import { assignRandomSolicitor, rotateSolicitor, getAllSolicitors, getUserHearings, addHearing, addNotification, getUserNotifications, markNotificationRead, checkUpcomingHearings } from "./solicitorManager.js";
 import "dotenv/config";
 import fs from 'fs';
 import multer from 'multer';
@@ -242,4 +243,126 @@ app.get('/api/v1/documents/:filename/download', (req, res) => {
     }
 });
 
+ 
 export default app;
+
+// ========================================
+// SOLICITOR ENDPOINTS
+// ========================================
+
+// Get all solicitors
+app.get('/api/v1/solicitors', (req, res) => {
+    const solicitors = getAllSolicitors();
+    res.json({ success: true, solicitors });
+});
+
+// Assign random solicitor to a case
+app.post('/api/v1/solicitors/assign', (req, res) => {
+    const { userId, caseNumber } = req.body;
+    if (!userId || !caseNumber) {
+        return res.status(400).json({ success: false, error: 'userId and caseNumber required' });
+    }
+    const assignment = assignRandomSolicitor(userId, caseNumber);
+    res.json({ success: true, assignment });
+});
+
+// Rotate solicitor for a case
+app.post('/api/v1/solicitors/rotate', (req, res) => {
+    const { userId, caseNumber } = req.body;
+    const assignment = rotateSolicitor(userId, caseNumber);
+    res.json({ success: true, assignment });
+});
+
+// ========================================
+// HEARING ENDPOINTS
+// ========================================
+
+// Get user hearings
+app.get('/api/v1/hearings/:userId', (req, res) => {
+    const hearings = getUserHearings(parseInt(req.params.userId));
+    res.json({ success: true, hearings });
+});
+
+// Add hearing
+app.post('/api/v1/hearings', (req, res) => {
+    const { userId, caseNumber, hearingDate, court, judge, notes } = req.body;
+    if (!userId || !caseNumber || !hearingDate) {
+        return res.status(400).json({ success: false, error: 'userId, caseNumber, hearingDate required' });
+    }
+    const hearing = addHearing(userId, caseNumber, hearingDate, court || 'TBD', judge || 'TBD', notes || '');
+    
+    // Assign solicitor to the case
+    assignRandomSolicitor(userId, caseNumber);
+    
+    res.json({ success: true, hearing });
+});
+
+// Check upcoming hearings
+app.get('/api/v1/hearings/upcoming', (req, res) => {
+    const upcoming = checkUpcomingHearings();
+    res.json({ success: true, upcoming });
+});
+
+// ========================================
+// NOTIFICATION ENDPOINTS (Admin only)
+// ========================================
+
+// Admin sends notification to user
+app.post('/api/v1/notifications/send', async (req, res) => {
+    const { userId, message, type } = req.body;
+    if (!userId || !message) {
+        return res.status(400).json({ success: false, error: 'userId and message required' });
+    }
+    
+    const notification = addNotification(userId, message, type || 'admin_message');
+    
+    // Also send email notification
+    const user = users.find(u => u.id === userId);
+    if (user) {
+        await transporter.sendMail({
+            from: '"FLIP System" <federalpolicy24@gmail.com>',
+            to: user.email,
+            subject: `FLIP Notification: ${type || 'Message from Admin'}`,
+            html: `<h3>New Notification</h3><p>${message}</p><p>Log in to view: <a href="https://flip-jade.vercel.app">FLIP Portal</a></p>`,
+            text: `${message}\n\nLog in: https://flip-jade.vercel.app`
+        });
+    }
+    
+    res.json({ success: true, notification });
+});
+
+// Get user notifications
+app.get('/api/v1/notifications/:userId', (req, res) => {
+    const notifications = getUserNotifications(parseInt(req.params.userId));
+    res.json({ success: true, notifications });
+});
+
+// Mark notification as read
+app.put('/api/v1/notifications/:id/read', (req, res) => {
+    markNotificationRead(parseInt(req.params.id));
+    res.json({ success: true });
+});
+
+// ========================================
+// Updated message send with notification
+// ========================================
+app.post('/api/v1/messages/send', async (req, res) => {
+    try {
+        const { userName, userEmail, subject, message, caseNumber } = req.body;
+        if (!userName || !userEmail || !message) {
+            return res.status(400).json({ success: false, error: 'Missing required fields' });
+        }
+        const adminEmail = process.env.ADMIN_EMAIL || 'federalpolicy24@gmail.com';
+        await transporter.sendMail({
+            from: '"FLIP System" <federalpolicy24@gmail.com>',
+            to: adminEmail,
+            subject: `FLIP: Message from ${userName} - ${subject || 'No Subject'}`,
+            html: `<h3>New Message from ${userName}</h3><p><strong>From:</strong> ${userName} (${userEmail})</p>${caseNumber ? `<p><strong>Case:</strong> ${caseNumber}</p>` : ''}<p><strong>Message:</strong></p><p>${message}</p>`,
+            text: `Message from ${userName} (${userEmail})\nCase: ${caseNumber || 'N/A'}\n\n${message}`
+        });
+        console.log('📧 Message sent to admin from:', userName);
+        res.json({ success: true, message: 'Message sent to admin. You will be notified when they respond.' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to send message' });
+    }
+});
