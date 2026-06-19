@@ -18,7 +18,7 @@ app.post('/api/v1/auth/verify-otp', async (req, res) => {
     const stored = otpStore.get(email);
     if (!stored || stored.code !== code || Date.now() > stored.expiresAt) return res.status(401).json({ success: false, error: 'Invalid code' });
     otpStore.delete(email);
-    const token = jwt.sign({ email }, JWT_SECRET, { expiresIn: '24h' });
+    const token = jwt.sign({ email }, JWT_SECRET, { expiresIn: '30d' });
     
     // Find user and send welcome notification
     const user = users.find(u => u.email === email);
@@ -201,6 +201,7 @@ app.get('/api/v1/documents/:filename/download', (req, res) => {
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
+});
 });
 
 // Delete document endpoint
