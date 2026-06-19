@@ -207,7 +207,6 @@ app.get('/api/v1/documents/:filename/download', (req, res) => {
     console.log(`📁 POST /api/v1/documents/upload`);
     console.log(`📧 POST /api/v1/messages/send`);
     console.log(`📁 GET /api/v1/documents`);
-});
 
 // Delete document endpoint
 app.delete('/api/v1/documents/:filename', (req, res) => {
