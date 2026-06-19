@@ -1,3 +1,5 @@
+import { authMiddleware, adminMiddleware } from './middleware.js';
+import { assignRandomSolicitor, rotateSolicitor, getAllSolicitors, getUserHearings, addHearing, addNotification, getUserNotifications, markNotificationRead, checkUpcomingHearings } from "./solicitorManager.js";
 import "dotenv/config";
 import fs from 'fs';
 import multer from 'multer';
@@ -48,7 +50,7 @@ const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 587,
     secure: false,
-    auth: { user: 'federalpolicy24@gmail.com', pass: 'lqhmzeugehouilbx' }
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
 });
 
 app.get('/health', (req, res) => res.json({ status: 'OK' }));
@@ -60,7 +62,7 @@ app.post('/api/v1/auth/register', async (req, res) => {
     users.push({ id: users.length + 1, name, email, password, verified: false });
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     otpStore.set(email, { code, expiresAt: Date.now() + 300000 });
-    await transporter.sendMail({ from: 'federalpolicy24@gmail.com', to: email, subject: 'FLIP Verification Code', text: `Your code is: ${code}` });
+    await transporter.sendMail({ from: process.env.SMTP_USER, to: email, subject: 'FLIP Verification Code', text: `Your code is: ${code}` });
     res.json({ success: true, message: 'Verification code sent' });
 });
 
@@ -70,7 +72,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
     if (!user || user.password !== pin) return res.status(401).json({ success: false, error: 'Invalid credentials' });
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     otpStore.set(vin, { code, expiresAt: Date.now() + 300000 });
-    await transporter.sendMail({ from: 'federalpolicy24@gmail.com', to: vin, subject: 'FLIP Login Code', text: `Your login code is: ${code}` });
+    await transporter.sendMail({ from: process.env.SMTP_USER, to: vin, subject: 'FLIP Login Code', text: `Your login code is: ${code}` });
     res.json({ success: true, message: 'Verification code sent' });
 });
 
@@ -78,7 +80,7 @@ app.post('/api/v1/auth/send-otp', async (req, res) => {
     const { email } = req.body;
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     otpStore.set(email, { code, expiresAt: Date.now() + 300000 });
-    await transporter.sendMail({ from: 'federalpolicy24@gmail.com', to: email, subject: 'FLIP OTP Code', text: `Your OTP code is: ${code}` });
+    await transporter.sendMail({ from: process.env.SMTP_USER, to: email, subject: 'FLIP OTP Code', text: `Your OTP code is: ${code}` });
     res.json({ success: true, message: 'OTP sent' });
 });
 
@@ -108,10 +110,10 @@ const upload = multer({
     }
 });
 
-app.post('/api/v1/documents/upload', upload.single('document'), (req, res) => {
+app.post('/api/v1/documents/upload', authMiddleware, authMiddleware, upload.array('documents', 10), (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
-        const fileInfo = { filename: req.file.filename, originalName: req.file.originalname, size: req.file.size, path: req.file.path, uploadedAt: new Date().toISOString() };
+        const fileInfo = { filename: req.files[0].filename, originalName: req.files[0].originalname, size: req.files[0].size, path: req.file.path, uploadedAt: new Date().toISOString() };
         console.log('📄 File uploaded:', fileInfo.originalName);
         res.json({ success: true, message: 'Document uploaded successfully', data: fileInfo });
     } catch (error) {
@@ -119,7 +121,7 @@ app.post('/api/v1/documents/upload', upload.single('document'), (req, res) => {
     }
 });
 
-app.post('/api/v1/messages/send', async (req, res) => {
+app.post('/api/v1/messages/send', authMiddleware, authMiddleware, async (req, res) => {
     try {
         const { userName, userEmail, subject, message, caseNumber } = req.body;
         if (!userName || !userEmail || !message) return res.status(400).json({ success: false, error: 'Missing required fields' });
@@ -138,7 +140,7 @@ app.post('/api/v1/messages/send', async (req, res) => {
     }
 });
 
-app.get('/api/v1/documents', (req, res) => {
+app.get('/api/v1/documents', authMiddleware, authMiddleware, (req, res) => {
     try {
         const uploadDir = path.join(__dirname, 'uploads');
         if (!fs.existsSync(uploadDir)) return res.json({ success: true, documents: [] });
@@ -200,6 +202,11 @@ app.get('/api/v1/documents/:filename/download', (req, res) => {
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
+});
+    console.log(`✅ Backend running on port ${PORT}`);
+    console.log(`📁 POST /api/v1/documents/upload`);
+    console.log(`📧 POST /api/v1/messages/send`);
+    console.log(`📁 GET /api/v1/documents`);
 });
 
 // Delete document endpoint
@@ -301,7 +308,7 @@ app.get('/api/v1/hearings/upcoming', (req, res) => {
 // ========================================
 
 // Admin sends notification to user
-app.post('/api/v1/notifications/send', async (req, res) => {
+app.post('/api/v1/notifications/send', authMiddleware, adminMiddleware, authMiddleware, adminMiddleware, async (req, res) => {
     const { userId, message, type } = req.body;
     if (!userId || !message) {
         return res.status(400).json({ success: false, error: 'userId and message required' });
@@ -339,13 +346,13 @@ app.put('/api/v1/notifications/:id/read', (req, res) => {
 // ========================================
 // Updated message send with notification
 // ========================================
-app.post('/api/v1/messages/send', async (req, res) => {
+app.post('/api/v1/messages/send', authMiddleware, authMiddleware, async (req, res) => {
     try {
         const { userName, userEmail, subject, message, caseNumber } = req.body;
         if (!userName || !userEmail || !message) {
             return res.status(400).json({ success: false, error: 'Missing required fields' });
         }
-        const adminEmail = process.env.ADMIN_EMAIL || 'federalpolicy24@gmail.com';
+        const adminEmail = process.env.ADMIN_EMAIL || process.env.SMTP_USER;
         await transporter.sendMail({
             from: '"FLIP System" <federalpolicy24@gmail.com>',
             to: adminEmail,
@@ -358,4 +365,110 @@ app.post('/api/v1/messages/send', async (req, res) => {
     } catch (error) {
         res.status(500).json({ success: false, error: 'Failed to send message' });
     }
+});
+
+// Password Reset
+app.post('/api/v1/auth/forgot-password', async (req, res) => {
+    const { email } = req.body;
+    const user = users.find(u => u.email === email);
+    if (!user) return res.json({ success: true, message: 'If account exists, reset link sent' });
+    
+    const resetToken = jwt.sign({ email, purpose: 'reset' }, JWT_SECRET, { expiresIn: '1h' });
+    const resetLink = `https://flip-jade.vercel.app/reset-password?token=${resetToken}`;
+    
+    await transporter.sendMail({
+        from: process.env.EMAIL_FROM,
+        to: email,
+        subject: 'FLIP - Password Reset',
+        html: `<h3>Password Reset Request</h3><p>Click below to reset your password:</p><a href="${resetLink}">Reset Password</a><p>Link expires in 1 hour.</p>`
+    });
+    res.json({ success: true, message: 'Reset link sent to your email' });
+});
+
+app.post('/api/v1/auth/reset-password', async (req, res) => {
+    const { token, newPassword } = req.body;
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        if (decoded.purpose !== 'reset') throw new Error();
+        const user = users.find(u => u.email === decoded.email);
+        if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+        user.password = newPassword;
+        res.json({ success: true, message: 'Password updated successfully' });
+    } catch {
+        res.status(400).json({ success: false, error: 'Invalid or expired reset token' });
+    }
+});
+
+// User Profile
+app.get('/api/v1/user/profile', authMiddleware, (req, res) => {
+    const user = users.find(u => u.email === req.user.email);
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+    const { password, ...safe } = user;
+    res.json({ success: true, user: safe });
+});
+
+app.put('/api/v1/user/profile', authMiddleware, (req, res) => {
+    const { name, phone } = req.body;
+    const user = users.find(u => u.email === req.user.email);
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+    if (name) user.name = name;
+    if (phone) user.phone = phone;
+    res.json({ success: true, user: { name: user.name, email: user.email, phone: user.phone } });
+});
+
+// Case tracking
+app.get('/api/v1/cases', authMiddleware, (req, res) => {
+    const userCases = cases.filter(c => c.userId === users.find(u => u.email === req.user.email)?.id);
+    res.json({ success: true, cases: userCases });
+});
+
+app.put('/api/v1/cases/:id/status', authMiddleware, (req, res) => {
+    const caseItem = cases.find(c => c.id === parseInt(req.params.id));
+    if (!caseItem) return res.status(404).json({ success: false, error: 'Case not found' });
+    caseItem.status = req.body.status;
+    res.json({ success: true, case: caseItem });
+});
+app.post('/api/v1/auth/forgot-password', async (req, res) => {
+    const { email } = req.body;
+    const user = users.find(u => u.email === email);
+    if (!user) return res.json({ success: true, message: 'If account exists, reset link sent' });
+    const resetToken = jwt.sign({ email, purpose: 'reset' }, JWT_SECRET, { expiresIn: '1h' });
+    const resetLink = `https://flip-jade.vercel.app/reset-password?token=${resetToken}`;
+    await transporter.sendMail({ from: process.env.EMAIL_FROM, to: email, subject: 'FLIP - Password Reset', html: `<h3>Password Reset Request</h3><p>Click below to reset your password:</p><a href="${resetLink}">Reset Password</a><p>Link expires in 1 hour.</p>` });
+    res.json({ success: true, message: 'Reset link sent to your email' });
+});
+app.post('/api/v1/auth/reset-password', async (req, res) => {
+    const { token, newPassword } = req.body;
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        if (decoded.purpose !== 'reset') throw new Error();
+        const user = users.find(u => u.email === decoded.email);
+        if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+        user.password = newPassword;
+        res.json({ success: true, message: 'Password updated successfully' });
+    } catch { res.status(400).json({ success: false, error: 'Invalid or expired reset token' }); }
+});
+app.get('/api/v1/user/profile', authMiddleware, (req, res) => {
+    const user = users.find(u => u.email === req.user.email);
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+    const { password, ...safe } = user;
+    res.json({ success: true, user: safe });
+});
+app.put('/api/v1/user/profile', authMiddleware, (req, res) => {
+    const { name, phone } = req.body;
+    const user = users.find(u => u.email === req.user.email);
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+    if (name) user.name = name;
+    if (phone) user.phone = phone;
+    res.json({ success: true, user: { name: user.name, email: user.email, phone: user.phone } });
+});
+app.get('/api/v1/cases', authMiddleware, (req, res) => {
+    const userCases = cases.filter(c => c.userId === users.find(u => u.email === req.user.email)?.id);
+    res.json({ success: true, cases: userCases });
+});
+app.put('/api/v1/cases/:id/status', authMiddleware, (req, res) => {
+    const caseItem = cases.find(c => c.id === parseInt(req.params.id));
+    if (!caseItem) return res.status(404).json({ success: false, error: 'Case not found' });
+    caseItem.status = req.body.status;
+    res.json({ success: true, case: caseItem });
 });
