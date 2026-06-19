@@ -380,3 +380,104 @@ app.get('/api/v1/my-cases', (req, res) => {
         res.json({ success: true, cases: [] });
     }
 });
+
+// Get dashboard stats for logged-in user (empty for new users)
+app.get('/api/v1/dashboard/stats', (req, res) => {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) return res.json({ success: true, stats: { activeCases: 0, resolved: 0, hearings: 0, notifications: 0 } });
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const user = users.find(u => u.email === decoded.email);
+        if (!user) return res.json({ success: true, stats: { activeCases: 0, resolved: 0, hearings: 0, notifications: 0 } });
+        
+        // Only count admin-assigned cases/hearings/notifications
+        const userNotifications = notifications.filter(n => n.userId === user.id);
+        const userHearings = hearings.filter(h => h.userId === user.id);
+        const userCases = cases.filter(c => c.userId === user.id);
+        
+        res.json({ success: true, stats: {
+            activeCases: userCases.filter(c => c.status === 'Active').length,
+            resolved: userCases.filter(c => c.status === 'Closed').length,
+            hearings: userHearings.length,
+            notifications: userNotifications.filter(n => !n.read).length
+        }});
+    } catch { res.json({ success: true, stats: { activeCases: 0, resolved: 0, hearings: 0, notifications: 0 } }); }
+});
+
+// Get user cases (only admin-assigned)
+app.get('/api/v1/my-cases', (req, res) => {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) return res.json({ success: true, cases: [] });
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const user = users.find(u => u.email === decoded.email);
+        if (!user) return res.json({ success: true, cases: [] });
+        
+        const userCases = cases.filter(c => c.userId === user.id);
+        res.json({ success: true, cases: userCases.map(c => ({
+            id: c.case_number || `CASE-${c.id}`,
+            offence: c.title || 'Case',
+            offender: c.offender || 'TBD',
+            role: 'Victim',
+            hearing: c.hearingDate || 'TBD',
+            status: c.status || 'Pending'
+        })) });
+    } catch { res.json({ success: true, cases: [] }); }
+});
+
+// Admin: assign case to user
+app.post('/api/v1/admin/assign-case', (req, res) => {
+    const { userId, title, offence, status, hearingDate } = req.body;
+    const newCase = {
+        id: cases.length + 1,
+        case_number: `CASE-${Date.now()}`,
+        userId,
+        title: title || 'New Case',
+        offence: offence || 'TBD',
+        status: status || 'Active',
+        hearingDate: hearingDate || null,
+        assignedAt: new Date().toISOString()
+    };
+    cases.push(newCase);
+    
+    // Notify user
+    addNotification(userId, `📋 New case assigned: ${newCase.title} (${newCase.case_number})`, 'case_assigned');
+    
+    // Email user
+    const user = users.find(u => u.id === userId);
+    if (user) {
+        transporter.sendMail({
+            from: process.env.EMAIL_FROM,
+            to: user.email,
+            subject: `New Case Assigned - ${newCase.case_number}`,
+            html: `<h3>New Case Assignment</h3><p>Case: ${newCase.title}</p><p>Number: ${newCase.case_number}</p><p>Status: ${newCase.status}</p><p>Log in: <a href="https://flip-jade.vercel.app">FLIP Portal</a></p>`
+        }).catch(e => console.error(e));
+    }
+    
+    res.json({ success: true, case: newCase });
+});
+
+// Admin: assign hearing to user
+app.post('/api/v1/admin/assign-hearing', (req, res) => {
+    const { userId, caseId, hearingDate, court, judge } = req.body;
+    const newHearing = {
+        id: hearings.length + 1,
+        userId,
+        caseId,
+        hearingDate,
+        court: court || 'TBD',
+        judge: judge || 'TBD',
+        status: 'Scheduled',
+        createdAt: new Date().toISOString()
+    };
+    hearings.push(newHearing);
+    
+    addNotification(userId, `📅 Hearing scheduled for ${new Date(hearingDate).toLocaleDateString()} at ${court || 'TBD'}`, 'hearing_scheduled');
+    
+    res.json({ success: true, hearing: newHearing });
+});
+
+// Initialize empty data arrays
+const notifications = [];
+const hearings = [];
+const cases = [];
