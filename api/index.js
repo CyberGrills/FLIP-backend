@@ -478,6 +478,3 @@ app.post('/api/v1/admin/assign-hearing', (req, res) => {
 });
 
 // Initialize empty data arrays
-const notifications = [];
-const hearings = [];
-const cases = [];

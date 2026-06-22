@@ -13,6 +13,7 @@ const NOTIFICATIONS_FILE = path.join(__dirname, 'data', 'notifications.json');
 // Load data
 let solicitors = [];
 let hearings = [];
+let cases = [];
 let notifications = [];
 
 try { solicitors = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); } catch(e) { solicitors = []; }
@@ -181,6 +182,27 @@ export function checkUpcomingHearings() {
     return upcoming;
 }
 
+
+// Case management
+export { notifications, hearings, cases };
+export function getUserCases(userId) {
+    return cases.filter(c => c.userId === userId);
+}
+export function addCase(userId, title, offence, status, hearingDate) {
+    const newCase = {
+        id: cases.length + 1,
+        case_number: `CASE-${Date.now()}`,
+        userId,
+        title: title || 'New Case',
+        offence: offence || 'TBD',
+        status: status || 'Active',
+        hearingDate: hearingDate || null,
+        assignedAt: new Date().toISOString()
+    };
+    cases.push(newCase);
+    return newCase;
+}
+
 // Automated hearing reminder (runs every hour)
 cron.schedule('0 * * * *', () => {
     console.log('🔍 Checking for upcoming hearings...');
@@ -219,6 +241,8 @@ console.log('📅 Hearing reminders: Every hour');
 console.log('🔄 Solicitor rotation: Every Monday 9am');
 
 export default {
+    getUserCases,
+    addCase,
     assignRandomSolicitor,
     rotateSolicitor,
     getAllSolicitors,
