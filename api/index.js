@@ -478,3 +478,4 @@ app.post('/api/v1/admin/assign-hearing', (req, res) => {
 }).catch(e => console.error('Welcome email failed:', e.message));
 
 // Initialize empty data arrays
+// redeploy trigger
