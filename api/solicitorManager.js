@@ -187,6 +187,7 @@ export function checkUpcomingHearings() {
 export { notifications, hearings, cases };
 export { notifications, hearings, cases };
 export { notifications, hearings, cases };
+export { notifications, hearings, cases };
 export function getUserCases(userId) {
     return cases.filter(c => c.userId === userId);
 }
